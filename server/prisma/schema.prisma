@@ -1,0 +1,314 @@
+// Expense Tracker – Prisma schema
+// PostgreSQL, UUID primary keys, snake_case tables, cascade deletes.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+  BANK
+}
+
+enum BudgetPeriod {
+  WEEKLY
+  MONTHLY
+}
+
+enum RecurrenceFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum NotificationType {
+  BUDGET_ALERT
+  BILL_REMINDER
+  SAVINGS
+  MONTHLY_SUMMARY
+  SYSTEM
+}
+
+enum ThemePreference {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
+enum AiInsightType {
+  SPENDING_ANALYSIS
+  MONTHLY_SUMMARY
+  BUDGET_ADVICE
+  CHAT
+}
+
+model User {
+  id              String    @id @default(uuid()) @db.Uuid
+  name            String    @db.VarChar(120)
+  email           String    @unique @db.VarChar(255)
+  passwordHash    String?   @map("password_hash")
+  googleId        String?   @unique @map("google_id") @db.VarChar(64)
+  avatarUrl       String?   @map("avatar_url")
+  role            Role      @default(USER)
+  emailVerified   Boolean   @default(false) @map("email_verified")
+  emailVerifiedAt DateTime? @map("email_verified_at")
+  isActive        Boolean   @default(true) @map("is_active")
+  lastLoginAt     DateTime? @map("last_login_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  settings         UserSettings?
+  transactions     Transaction[]
+  categories       Category[]
+  budgets          Budget[]
+  goals            SavingsGoal[]
+  contributions    GoalContribution[]
+  recurring        RecurringTransaction[]
+  notifications    Notification[]
+  refreshTokens    RefreshToken[]
+  aiInsights       AiInsight[]
+  verificationTokens EmailToken[]
+
+  @@index([role])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model Category {
+  id        String          @id @default(uuid()) @db.Uuid
+  userId    String?         @map("user_id") @db.Uuid
+  name      String          @db.VarChar(80)
+  type      TransactionType @default(EXPENSE)
+  icon      String          @default("Tag") @db.VarChar(40)
+  color     String          @default("#7C3AED") @db.VarChar(9)
+  isSystem  Boolean         @default(false) @map("is_system")
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+
+  user         User?                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  budgets      Budget[]
+  recurring    RecurringTransaction[]
+
+  @@unique([userId, name, type])
+  @@index([userId])
+  @@index([type])
+  @@map("categories")
+}
+
+model Transaction {
+  id            String          @id @default(uuid()) @db.Uuid
+  userId        String          @map("user_id") @db.Uuid
+  categoryId    String?         @map("category_id") @db.Uuid
+  type          TransactionType
+  amount        Decimal         @db.Decimal(14, 2)
+  description   String          @db.VarChar(200)
+  notes         String?         @db.VarChar(1000)
+  paymentMethod PaymentMethod   @default(CASH) @map("payment_method")
+  date          DateTime        @db.Date
+  recurringId   String?         @map("recurring_id") @db.Uuid
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category  Category?             @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  recurring RecurringTransaction? @relation(fields: [recurringId], references: [id], onDelete: SetNull)
+
+  @@index([userId, date])
+  @@index([userId, type])
+  @@index([userId, categoryId])
+  @@index([recurringId])
+  @@map("transactions")
+}
+
+model Budget {
+  id         String       @id @default(uuid()) @db.Uuid
+  userId     String       @map("user_id") @db.Uuid
+  categoryId String?      @map("category_id") @db.Uuid
+  name       String?      @db.VarChar(120)
+  period     BudgetPeriod @default(MONTHLY)
+  amount     Decimal      @db.Decimal(14, 2)
+  startDate  DateTime     @map("start_date") @db.Date
+  endDate    DateTime     @map("end_date") @db.Date
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, categoryId, period, startDate])
+  @@index([userId, startDate, endDate])
+  @@map("budgets")
+}
+
+model SavingsGoal {
+  id           String     @id @default(uuid()) @db.Uuid
+  userId       String     @map("user_id") @db.Uuid
+  name         String     @db.VarChar(120)
+  description  String?    @db.VarChar(500)
+  targetAmount Decimal    @map("target_amount") @db.Decimal(14, 2)
+  targetDate   DateTime   @map("target_date") @db.Date
+  color        String     @default("#7C3AED") @db.VarChar(9)
+  status       GoalStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contributions GoalContribution[]
+
+  @@index([userId, status])
+  @@map("savings_goals")
+}
+
+model GoalContribution {
+  id        String   @id @default(uuid()) @db.Uuid
+  goalId    String   @map("goal_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  amount    Decimal  @db.Decimal(14, 2)
+  note      String?  @db.VarChar(300)
+  date      DateTime @default(now()) @db.Date
+  createdAt DateTime @default(now()) @map("created_at")
+
+  goal SavingsGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([goalId, date])
+  @@index([userId])
+  @@map("goal_contributions")
+}
+
+model RecurringTransaction {
+  id            String              @id @default(uuid()) @db.Uuid
+  userId        String              @map("user_id") @db.Uuid
+  categoryId    String?             @map("category_id") @db.Uuid
+  type          TransactionType
+  amount        Decimal             @db.Decimal(14, 2)
+  description   String              @db.VarChar(200)
+  paymentMethod PaymentMethod       @default(CASH) @map("payment_method")
+  frequency     RecurrenceFrequency
+  interval      Int                 @default(1)
+  startDate     DateTime            @map("start_date") @db.Date
+  nextRunDate   DateTime            @map("next_run_date") @db.Date
+  endDate       DateTime?           @map("end_date") @db.Date
+  isActive      Boolean             @default(true) @map("is_active")
+  lastRunAt     DateTime?           @map("last_run_at")
+  reminderDays  Int                 @default(3) @map("reminder_days")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category     Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  transactions Transaction[]
+
+  @@index([userId, isActive])
+  @@index([nextRunDate, isActive])
+  @@map("recurring_transactions")
+}
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  type      NotificationType
+  title     String           @db.VarChar(160)
+  message   String           @db.VarChar(600)
+  data      Json?
+  isRead    Boolean          @default(false) @map("is_read")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+  @@map("notifications")
+}
+
+model UserSettings {
+  id                   String         @id @default(uuid()) @db.Uuid
+  userId               String         @unique @map("user_id") @db.Uuid
+  currency             String         @default("INR") @db.VarChar(3)
+  locale               String         @default("en-IN") @db.VarChar(10)
+  theme                ThemePreference @default(SYSTEM)
+  notifyBudgetAlerts   Boolean        @default(true) @map("notify_budget_alerts")
+  notifyBillReminders  Boolean        @default(true) @map("notify_bill_reminders")
+  notifySavings        Boolean        @default(true) @map("notify_savings")
+  notifyMonthlySummary Boolean        @default(true) @map("notify_monthly_summary")
+  weekStartsOn         Int            @default(1) @map("week_starts_on")
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.VarChar(128)
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  userAgent String?   @map("user_agent") @db.VarChar(300)
+  ip        String?   @db.VarChar(64)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model AiInsight {
+  id         String        @id @default(uuid()) @db.Uuid
+  userId     String        @map("user_id") @db.Uuid
+  type       AiInsightType
+  prompt     String?       @db.VarChar(2000)
+  content    String        @db.Text
+  model      String        @db.VarChar(80)
+  source     String        @default("rules") @db.VarChar(20)
+  metadata   Json?
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("ai_insights")
+}
+
+model EmailToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  tokenHash String   @unique @map("token_hash") @db.VarChar(128)
+  purpose   String   @db.VarChar(20)
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@map("email_tokens")
+}
