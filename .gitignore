@@ -10,6 +10,13 @@ client/dist/
 server/dist/
 *.tsbuildinfo
 
+# generated Android/iOS project (created in CI by `npx cap add android`)
+android/
+ios/
+*.apk
+*.aab
+*.keystore
+
 # environment / secrets
 .env
 .env.*

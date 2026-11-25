@@ -7,7 +7,7 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { ApiError, api } from '../lib/api';
+import { ApiError, api, getApiBase, setApiBase } from '../lib/api';
 
 export default function Login() {
   const { login } = useAuth();
@@ -20,6 +20,8 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [resendUrl, setResendUrl] = useState('');
+  const [showServer, setShowServer] = useState(false);
+  const [serverInput, setServerInput] = useState(getApiBase());
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -145,6 +147,52 @@ export default function Login() {
           Sign in
         </Button>
       </form>
+
+      {/* Only relevant for the installed Android app, which has no same-origin API. */}
+      <div className="mt-5 border-t border-ink-100 pt-4 dark:border-white/10">
+        <button
+          type="button"
+          onClick={() => setShowServer((v) => !v)}
+          className="text-[11.5px] font-semibold text-ink-400 transition hover:text-ink-700 dark:hover:text-white"
+        >
+          {getApiBase() ? `Server: ${getApiBase()}` : 'Connect to a server'}
+        </button>
+        {showServer && (
+          <div className="mt-2 space-y-2">
+            <input
+              type="url"
+              value={serverInput}
+              onChange={(event) => setServerInput(event.target.value)}
+              placeholder="https://your-expense-tracker.example.com"
+              className="w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-[12.5px] text-ink-900 outline-none focus:border-brand-500 dark:border-white/15 dark:bg-white/5 dark:text-white"
+            />
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setApiBase(serverInput);
+                  setServerInput(getApiBase());
+                  toast.success('Server address saved');
+                }}
+                className="text-[11.5px] font-bold text-brand-700 hover:text-brand-800 dark:text-brand-300"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setApiBase('');
+                  setServerInput('');
+                  toast.success('Using the default server');
+                }}
+                className="text-[11.5px] font-semibold text-ink-400 hover:text-ink-700 dark:hover:text-white"
+              >
+                Use default
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </AuthShell>
   );
 }

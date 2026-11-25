@@ -1,6 +1,33 @@
 let accessToken: string | null = null;
 let refreshPromise: Promise<boolean> | null = null;
 
+// When the app is installed (Android APK) there is no same-origin server, so the
+// API host is configurable: build-time VITE_API_BASE_URL or a runtime override.
+const envBase = ((import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_API_BASE_URL ?? '')
+  .trim()
+  .replace(/\/+$/, '');
+const API_BASE_KEY = 'et:apiBase';
+
+export function getApiBase(): string {
+  try {
+    const stored = localStorage.getItem(API_BASE_KEY)?.trim().replace(/\/+$/, '');
+    if (stored) return stored;
+  } catch {
+    /* storage unavailable */
+  }
+  return envBase;
+}
+
+export function setApiBase(base: string) {
+  try {
+    const clean = base.trim().replace(/\/+$/, '');
+    if (clean) localStorage.setItem(API_BASE_KEY, clean);
+    else localStorage.removeItem(API_BASE_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 export class ApiError extends Error {
   status: number;
   code: string;
@@ -31,7 +58,7 @@ type Options = {
 
 async function refreshSession(): Promise<boolean> {
   if (!refreshPromise) {
-    refreshPromise = fetch('/api/auth/refresh', {
+    refreshPromise = fetch(`${getApiBase()}/api/auth/refresh`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -56,7 +83,7 @@ export async function api<T = unknown>(path: string, options: Options = {}): Pro
     const headers: Record<string, string> = {};
     if (options.body !== undefined) headers['Content-Type'] = 'application/json';
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-    return fetch(`/api${path}`, {
+    return fetch(`${getApiBase()}/api${path}`, {
       method: options.method ?? 'GET',
       headers,
       credentials: 'include',
