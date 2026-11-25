@@ -1,0 +1,74 @@
+name: Build Android APK
+
+# Builds an installable, debug-signed APK of the Expense Tracker web client and
+# publishes it as a GitHub Release asset (tag: apk-latest).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client/**'
+      - 'capacitor.config.json'
+      - '.github/workflows/android-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Add Capacitor tooling
+        run: npm install --no-save @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+
+      - name: Build web app
+        # Set the repository variable API_BASE_URL to bake in your server URL.
+        # Without it, the app asks for a server address on the login screen.
+        env:
+          VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: npm run build -w client
+
+      - name: Generate Android project
+        run: |
+          npx cap add android
+          npx cap sync android
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Build debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Collect APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk expense-tracker.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: expense-tracker-apk
+          path: expense-tracker.apk
+          if-no-files-found: error
+
+      - name: Publish APK to GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ls -lh expense-tracker.apk
+          gh release delete apk-latest --yes --cleanup-tag || true
+          gh release create apk-latest expense-tracker.apk \
+            --title "Expense Tracker – Android APK" \
+            --notes "Installable Android build of the Expense Tracker client, generated from commit ${{ github.sha }}. Requires Android 7.0+; enable 'Install unknown apps' to install. The app needs a running server: enter its address under 'Connect to a server' on the login screen."

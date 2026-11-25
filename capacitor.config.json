@@ -1,0 +1,12 @@
+{
+  "appId": "com.samruddhi.expensetracker",
+  "appName": "Expense Tracker",
+  "webDir": "client/dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
