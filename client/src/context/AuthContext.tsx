@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { api, refreshSession, setAccessToken } from '../lib/api';
+import { api, getApiBase, refreshSession, setAccessToken } from '../lib/api';
 import type { User } from '../lib/types';
 
 type AuthContextValue = {
@@ -24,7 +24,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/auth/refresh', {
+        const res = await fetch(`${getApiBase()}/api/auth/refresh`, {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
